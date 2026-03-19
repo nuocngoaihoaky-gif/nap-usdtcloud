@@ -147,10 +147,21 @@ def main():
                     batch.update(tx_ref, {'amountUSD': safe_usd_value, 'status': 'success'})
 
                     user_doc = user_ref.get()
-                    current_history = user_doc.to_dict().get('transactions', []) if user_doc.exists else []
+                    current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
                     display_crypto = f"{ton_received:.4f} TON"
-                    current_history.insert(0, {'type': 'deposit', 'cryptoAmount': display_crypto, 'status': 'success', 'time': int(time.time() * 1000)})
-                    batch.set(user_ref, {'transactions': current_history[:50], 'hasDeposited3USD': (current_deposited + safe_usd_value) >= 3}, merge=True)
+                    
+                    # Chuẩn hóa object giống hệt đơn Rút
+                    dep_record = {
+                        'id': f"DEP_{int(time.time() * 1000)}_{uid}",
+                        'type': 'deposit',
+                        'amount': safe_usd_value, # Số USDT nạp
+                        'cryptoAmount': display_crypto,
+                        'txHash': tx_hash,
+                        'status': 'completed',
+                        'created_at': int(time.time() * 1000)
+                    }
+                    current_history.insert(0, dep_record)
+                    batch.set(user_ref, {'transactionHistory': current_history[:50], 'hasDeposited3USD': (current_deposited + safe_usd_value) >= 3}, merge=True)
                     
                     try:
                         batch.commit()
@@ -243,9 +254,19 @@ def main():
                     })
                     
                     user_doc = user_ref.get()
-                    current_history = user_doc.to_dict().get('transactions', []) if user_doc.exists else []
-                    current_history.insert(0, {'type': 'deposit', 'cryptoAmount': display_crypto, 'status': 'success', 'time': int(time.time() * 1000)})
-                    batch.set(user_ref, {'transactions': current_history[:50], 'hasDeposited3USD': (current_deposited + safe_usd_value) >= 3}, merge=True)
+                    current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
+                    
+                    dep_record = {
+                        'id': f"DEP_{int(time.time() * 1000)}_{uid}",
+                        'type': 'deposit',
+                        'amount': safe_usd_value,
+                        'cryptoAmount': display_crypto,
+                        'txHash': tx_hash,
+                        'status': 'completed',
+                        'created_at': int(time.time() * 1000)
+                    }
+                    current_history.insert(0, dep_record)
+                    batch.set(user_ref, {'transactionHistory': current_history[:50], 'hasDeposited3USD': (current_deposited + safe_usd_value) >= 3}, merge=True)
                     
                     try:
                         batch.commit()
@@ -274,9 +295,19 @@ def main():
                     batch = db_fs.batch()
                     batch.create(tx_ref, {'uid': uid, 'type': 'deposit', 'amountTON': ton_received, 'amountUSDT_Jetton': 0, 'amountUSD': 0, 'txHash': tx_hash, 'status': 'pending_manual', 'createdAt': int(time.time() * 1000)})
                     user_doc = user_ref.get()
-                    current_history = user_doc.to_dict().get('transactions', []) if user_doc.exists else []
-                    current_history.insert(0, {'type': 'deposit', 'cryptoAmount': display_crypto, 'status': 'pending', 'time': int(time.time() * 1000)})
-                    batch.set(user_ref, {'transactions': current_history[:50]}, merge=True)
+                    current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
+                    
+                    dep_record = {
+                        'id': f"DEP_{int(time.time() * 1000)}_{uid}",
+                        'type': 'deposit',
+                        'amount': 0, # Kẹt giá nên chưa có USD
+                        'cryptoAmount': display_crypto,
+                        'txHash': tx_hash,
+                        'status': 'pending', # Để pending chờ RAM gỡ
+                        'created_at': int(time.time() * 1000)
+                    }
+                    current_history.insert(0, dep_record)
+                    batch.set(user_ref, {'transactionHistory': current_history[:50]}, merge=True)
                     
                     try:
                         batch.commit()
