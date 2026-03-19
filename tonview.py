@@ -9,8 +9,8 @@ from firebase_admin import credentials, firestore, db
 # CẤU HÌNH CỨNG
 # ==========================================
 ADMIN_WALLET = "0:54efc445116ebc8fd644b5a2e88728ebff91aebf14d2245de1ec76190c60997e" 
-ADMIN_TELEGRAM_ID = "-1003442716824"
-ADMIN_TOPIC_ID = 4
+ADMIN_TELEGRAM_ID = "-1003848712775"
+ADMIN_TOPIC_ID = 134
 PRICE_SPREAD = 0.03
 
 # ==========================================
