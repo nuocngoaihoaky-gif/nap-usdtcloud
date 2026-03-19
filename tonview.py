@@ -6,20 +6,24 @@ import firebase_admin
 from firebase_admin import credentials, firestore, db
 
 # ==========================================
-# CẤU HÌNH LẤY TỪ BIẾN MÔI TRƯỜNG
+# CẤU HÌNH CỨNG (KHÔNG NHẠY CẢM)
 # ==========================================
-ADMIN_WALLET = os.environ.get("ADMIN_WALLET")
+# LƯU Ý SỐNG CÒN: Chỗ này BẮT BUỘC phải dùng địa chỉ dạng Raw (0:...) 
+# Bạn lên Tonviewer.com, dán ví UQBU... vào để lấy chuỗi Raw tương ứng nhé.
+ADMIN_WALLET = "0:54efc445116ebc8fd644b5a2e88728ebff91aebf14d2245de1ec76190c60997e" # ← Thay bằng Raw Address thực tế của bạn
+ADMIN_TELEGRAM_ID = "-1003442716824"
+ADMIN_TOPIC_ID = 4
+PRICE_SPREAD = 0.03
+
+# ==========================================
+# CẤU HÌNH NHẠY CẢM LẤY TỪ BIẾN MÔI TRƯỜNG
+# ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-# Lưu ý: ADMIN_TELEGRAM_ID phải có định dạng -100... (VD: -1003442716824)
-ADMIN_TELEGRAM_ID = os.environ.get("ADMIN_TELEGRAM_ID")
-ADMIN_TOPIC_ID = os.environ.get("ADMIN_TOPIC_ID") # Điền số 4 vào Github Secrets
 DATABASE_URL = os.environ.get("DATABASE_URL")
 FIREBASE_SERVICE_ACCOUNT = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
 
-PRICE_SPREAD = 0.03
-
-if not all([ADMIN_WALLET, BOT_TOKEN, ADMIN_TELEGRAM_ID, DATABASE_URL, FIREBASE_SERVICE_ACCOUNT]):
-    print("❌ LỖI: Thiếu biến môi trường. Hãy kiểm tra lại Github Secrets!")
+if not all([BOT_TOKEN, DATABASE_URL, FIREBASE_SERVICE_ACCOUNT]):
+    print("❌ LỖI: Thiếu biến môi trường nhạy cảm. Hãy kiểm tra lại Github Secrets!")
     exit()
 
 try:
@@ -132,7 +136,7 @@ def main():
                     wallet_snap = wallet_ref.get()
                     if not wallet_snap: continue
 
-                    # Tính toán USDT (Làm tròn 6 số để an toàn, tránh trôi số thập phân)
+                    # Tính toán USDT
                     raw_usd_value = ton_received * ton_deposit_rate_usd
                     safe_usd_value = round(raw_usd_value, 6)
 
@@ -182,6 +186,7 @@ def main():
                 receiver = ton_data.get('recipient', {}).get('address', '')
                 memo = ton_data.get('comment', '')
 
+                # SO SÁNH ĐỊA CHỈ VÍ DẠNG RAW (0:...)
                 if receiver.lower() == ADMIN_WALLET.lower() and memo:
                     ton_received = int(ton_data.get('amount', 0)) / 1e9
                     uid = str(memo).strip()
