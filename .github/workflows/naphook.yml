@@ -1,0 +1,27 @@
+name: TON_Payment_Worker
+
+on:
+  workflow_dispatch: # Chỉ nhận lệnh chạy thủ công hoặc từ API bên ngoài
+
+concurrency:
+  group: ton-scanner-group
+  cancel-in-progress: true # Cronjob gõ cửa -> Thằng mới chạy -> Thằng cũ bị chém ngay lập tức
+
+jobs:
+  run-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install requests firebase-admin
+      - name: Run Python Worker
+        env:
+          ADMIN_WALLET: ${{ secrets.ADMIN_WALLET }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_TELEGRAM_ID: ${{ secrets.ADMIN_TELEGRAM_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        timeout-minutes: 310
+        run: python -u tonview.py
