@@ -150,12 +150,13 @@ def main():
                     current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
                     display_crypto = f"{ton_received:.4f} TON"
                     
-                    # Chuẩn hóa object giống hệt đơn Rút
+                    # 🔥 CẬP NHẬT: Định dạng chuẩn cho Frontend
                     dep_record = {
                         'id': f"DEP_{int(time.time() * 1000)}_{uid}",
                         'type': 'deposit',
-                        'amount': safe_usd_value, # Số USDT nạp
-                        'cryptoAmount': display_crypto,
+                        'amount': safe_usd_value, 
+                        'network': 'tele',
+                        'username': uid,
                         'txHash': tx_hash,
                         'status': 'completed',
                         'created_at': int(time.time() * 1000)
@@ -256,11 +257,13 @@ def main():
                     user_doc = user_ref.get()
                     current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
                     
+                    # 🔥 CẬP NHẬT: Định dạng chuẩn cho Frontend
                     dep_record = {
                         'id': f"DEP_{int(time.time() * 1000)}_{uid}",
                         'type': 'deposit',
                         'amount': safe_usd_value,
-                        'cryptoAmount': display_crypto,
+                        'network': 'tele',
+                        'username': uid,
                         'txHash': tx_hash,
                         'status': 'completed',
                         'created_at': int(time.time() * 1000)
@@ -297,13 +300,15 @@ def main():
                     user_doc = user_ref.get()
                     current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
                     
+                    # 🔥 CẬP NHẬT: Báo pending nếu kẹt mạng
                     dep_record = {
                         'id': f"DEP_{int(time.time() * 1000)}_{uid}",
                         'type': 'deposit',
-                        'amount': 0, # Kẹt giá nên chưa có USD
-                        'cryptoAmount': display_crypto,
+                        'amount': 0, 
+                        'network': 'tele',
+                        'username': uid,
                         'txHash': tx_hash,
-                        'status': 'pending', # Để pending chờ RAM gỡ
+                        'status': 'pending', 
                         'created_at': int(time.time() * 1000)
                     }
                     current_history.insert(0, dep_record)
