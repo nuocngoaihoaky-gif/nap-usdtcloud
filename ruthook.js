@@ -7,7 +7,7 @@ import { mnemonicToPrivateKey } from 'ton-crypto';
 // ==========================================
 const ADMIN_CHAT_ID = '-1003848712775'; 
 const ADMIN_TOPIC_ID = 137; 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const BOT_TOKEN = process.env.BOT_TOKEN;
 const TONCENTER_API_KEY = process.env.TONCENTER_API_KEY || '';
 
 // Khởi tạo Firebase Admin SDK (Đọc từ biến môi trường của GitHub)
@@ -15,7 +15,7 @@ if (!admin.apps.length) {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        databaseURL: process.env.FIREBASE_DATABASE_URL // VD: https://app-cua-ban-default-rtdb.firebaseio.com
+        databaseURL: process.env.DATABASE_URL // VD: https://app-cua-ban-default-rtdb.firebaseio.com
     });
 }
 
