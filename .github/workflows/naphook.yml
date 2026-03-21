@@ -1,4 +1,4 @@
-name: TON_Payment_Worker
+name: Nạp Tiền Auto
 
 on:
   workflow_dispatch: # Chỉ nhận lệnh chạy thủ công hoặc từ API bên ngoài
@@ -24,4 +24,4 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         timeout-minutes: 310
-        run: python -u tonview.py
+        run: python -u naphook.py
