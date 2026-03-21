@@ -1,4 +1,4 @@
-name: Auto Payout Worker
+name: Auto Rút Tiền
 
 # KÍCH HOẠT BẰNG 2 CÁCH:
 # 1. workflow_dispatch: Cho phép bạn vào tab "Actions" trên Github bấm nút "Run workflow" bằng tay để test.
