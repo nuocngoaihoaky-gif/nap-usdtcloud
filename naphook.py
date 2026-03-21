@@ -67,7 +67,6 @@ def main():
     except Exception as e:
         print(f"⚠️ Lỗi nạp cache: {e}")
 
-    last_processed_time = int(time.time()) - 3600
     print("🚀 BOT BẮT ĐẦU HOẠT ĐỘNG (Quét 5s/lần)...\n")
     
     start_time = time.time()
@@ -81,7 +80,8 @@ def main():
         try:
             time.sleep(5)
             
-            if len(processed_txs) > 2000:
+            # Sức chứa RAM mở rộng lên 10.000 để dư sức gánh hệ thống lớn
+            if len(processed_txs) > 10000:
                 processed_txs.clear()
 
             # Tăng limit lên 100 để không lọt lưới nếu bị spam
@@ -89,10 +89,9 @@ def main():
             if res.status_code != 200: continue
             
             events = res.json().get('events', [])
-            new_events = [e for e in events if e['timestamp'] >= last_processed_time]
-            new_events.reverse() 
+            events.reverse() # Lật ngược: Xử lý từ đơn cũ nhất tiến dần đến đơn mới nhất
 
-            if not new_events and not pending_orders_ram: 
+            if not events and not pending_orders_ram: 
                 continue
 
             # 2. LẤY GIÁ TON 
@@ -139,7 +138,7 @@ def main():
                     user_doc = user_ref.get()
                     current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
                     
-                    # 🛠️ VÁ LỖI 1: Cập nhật lại trạng thái lịch sử thay vì nhét thêm 1 dòng nữa
+                    # Cập nhật lại trạng thái lịch sử thay vì nhét thêm 1 dòng nữa
                     for record in current_history:
                         if record.get('txHash') == tx_hash:
                             record['status'] = 'completed'
@@ -148,7 +147,7 @@ def main():
                     
                     batch.set(user_ref, {'transactionHistory': current_history[:50]}, merge=True)
                     
-                    # 🛠️ VÁ LỖI 2: Chống Race Condition bằng Transaction khi gỡ RAM
+                    # Chống Race Condition bằng Transaction khi gỡ RAM
                     def update_wallet_ram(current_data):
                         if current_data is None: return current_data
                         current_data['balance'] = round10(float(current_data.get('balance', 0)) + safe_usd_value)
@@ -167,17 +166,21 @@ def main():
                     except Exception:
                         pass
 
-            # 4. XỬ LÝ CÁC GIAO DỊCH MỚI
-            for event in new_events:
-                if event['timestamp'] > last_processed_time:
-                    last_processed_time = event['timestamp']
+            # 4. XỬ LÝ CÁC GIAO DỊCH MỚI TRỰC TIẾP TỪ EVENTS MÀ KHÔNG DÙNG LAST_PROCESSED_TIME
+            current_time = int(time.time())
+            
+            for event in events:
+                tx_hash = event['event_id'] 
 
-                # 🛠️ VÁ LỖI 3 (LỖI TRÙNG ĐƠN KÉP): Skip toàn bộ giao dịch đang lơ lửng ở Mempool
-                if event.get('in_progress') is True:
+                # 🛡️ KHIÊN 1: Chặn đơn cổ đại (vượt quá 1 tiếng trước) để bot không bới móc quá khứ
+                if event['timestamp'] < (current_time - 3600):
                     continue
 
-                tx_hash = event['event_id'] 
+                # 🛡️ KHIÊN 2: Bỏ qua đơn lơ lửng Mempool (Chờ xác nhận xong mới đớp)
+                if event.get('in_progress') is True:
+                    continue
                 
+                # 🛡️ KHIÊN 3: Chặn đơn đã được lưu trong RAM (Chống cộng tiền 2 lần)
                 if tx_hash in processed_txs:
                     continue
                 
@@ -257,7 +260,7 @@ def main():
                     current_history.insert(0, dep_record)
                     batch.set(user_ref, {'transactionHistory': current_history[:50], 'hasDeposited3USD': (current_deposited + safe_usd_value) >= 3}, merge=True)
                     
-                    # 🛠️ VÁ LỖI 2: Dùng Transaction cho nạp tiền bình thường
+                    # Dùng Transaction cho nạp tiền bình thường
                     def update_wallet_new(current_data):
                         if current_data is None: return current_data
                         current_data['balance'] = round10(float(current_data.get('balance', 0)) + safe_usd_value)
