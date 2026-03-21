@@ -1,0 +1,42 @@
+name: Auto Payout Worker
+
+# KÍCH HOẠT BẰNG 2 CÁCH:
+# 1. workflow_dispatch: Cho phép bạn vào tab "Actions" trên Github bấm nút "Run workflow" bằng tay để test.
+# 2. repository_dispatch: Mở cổng API để file withdraw_tele.js trên Vercel có thể gọi sang bằng Webhook.
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [trigger-payout]
+
+# 🛡️ LỚP KHIÊN BẢO VỆ SỐNG CÒN (CONCURRENCY)
+# Bắt buộc cancel-in-progress: false để khi có 10 request gọi đến cùng lúc, 
+# Github sẽ cho 1 thằng chạy, 9 thằng còn lại đứng chờ. Thằng 1 xong thì thằng 2 mới được vào.
+concurrency:
+  group: payout-worker
+  cancel-in-progress: false
+
+jobs:
+  run-payout:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Lấy mã nguồn từ kho
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Cài đặt môi trường Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Cài đặt thư viện (Dependencies)
+        run: npm install
+
+      - name: 🚀 Khởi chạy cỗ máy xả tiền (Worker)
+        env:
+          # Bơm các biến môi trường bí mật từ Github Secrets vào cho file worker.js đọc
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          ADMIN_SEED_PHRASE: ${{ secrets.ADMIN_SEED_PHRASE }}
+          TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
+        run: node ruthook.js
