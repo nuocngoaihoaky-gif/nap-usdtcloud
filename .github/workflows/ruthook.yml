@@ -34,9 +34,9 @@ jobs:
       - name: 🚀 Khởi chạy cỗ máy xả tiền (Worker)
         env:
           # Bơm các biến môi trường bí mật từ Github Secrets vào cho file worker.js đọc
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ADMIN_SEED_PHRASE: ${{ secrets.ADMIN_SEED_PHRASE }}
           TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
         run: node ruthook.js
