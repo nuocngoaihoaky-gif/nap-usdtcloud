@@ -60,7 +60,7 @@ def main():
     # TỐI ƯU READ FIRESTORE: Query 1 lần duy nhất lịch sử 2 tiếng gần nhất nạp vào RAM
     try:
         print("🔄 Đang nạp lịch sử giao dịch vào RAM để tiết kiệm Read...")
-        time_limit = int(time.time() * 1000) - (2 * 3600 * 1000) # 2 tiếng trước
+        time_limit = int(time.time() * 1000) - (11 * 3600 * 1000) # 2 tiếng trước
         recent_txs = db_fs.collection('transactions').where('createdAt', '>=', time_limit).stream()
         for doc in recent_txs:
             processed_txs.add(doc.id)
@@ -69,7 +69,7 @@ def main():
         print(f"⚠️ Lỗi nạp cache: {e}")
 
     # Lùi mốc thời gian API về 1 tiếng chống sót đơn lúc giao ca giữa 2 Bot
-    last_processed_time = int(time.time()) - 3600
+    last_processed_time = int(time.time()) - 11 * 3600
     print("🚀 BOT BẮT ĐẦU HOẠT ĐỘNG (Quét 5s/lần)...\n")
     
     start_time = time.time()
