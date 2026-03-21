@@ -57,7 +57,6 @@ def main():
     processed_txs = set() 
     pending_orders_ram = []
     
-    # TỐI ƯU READ FIRESTORE: Query 1 lần duy nhất lịch sử 2 tiếng gần nhất nạp vào RAM
     try:
         print("🔄 Đang nạp lịch sử giao dịch vào RAM để tiết kiệm Read...")
         time_limit = int(time.time() * 1000) - (2 * 3600 * 1000) # 2 tiếng trước
@@ -68,7 +67,6 @@ def main():
     except Exception as e:
         print(f"⚠️ Lỗi nạp cache: {e}")
 
-    # Lùi mốc thời gian API về 1 tiếng chống sót đơn lúc giao ca giữa 2 Bot
     last_processed_time = int(time.time()) - 3600
     print("🚀 BOT BẮT ĐẦU HOẠT ĐỘNG (Quét 5s/lần)...\n")
     
@@ -83,12 +81,11 @@ def main():
         try:
             time.sleep(5)
             
-            # Reset RAM Cache nếu đầy
             if len(processed_txs) > 2000:
                 processed_txs.clear()
 
-            # 1. QUÉT API LẤY GIAO DỊCH
-            res = requests.get(f"https://tonapi.io/v2/accounts/{ADMIN_WALLET}/events?limit=20", timeout=10)
+            # Tăng limit lên 100 để không lọt lưới nếu bị spam
+            res = requests.get(f"https://tonapi.io/v2/accounts/{ADMIN_WALLET}/events?limit=100", timeout=10)
             if res.status_code != 200: continue
             
             events = res.json().get('events', [])
@@ -121,7 +118,7 @@ def main():
 
             ton_deposit_rate_usd = ton_price_usd * (1 - PRICE_SPREAD)
 
-            # 3. ƯU TIÊN XỬ LÝ ĐƠN TREO TỪ RAM (NẾU MẠNG BÌNH THƯỜNG TRỞ LẠI)
+            # 3. ƯU TIÊN XỬ LÝ ĐƠN TREO TỪ RAM
             if is_price_alive and pending_orders_ram:
                 for pending in pending_orders_ram[:]: 
                     uid, ton_received, tx_hash = pending['uid'], pending['ton_received'], pending['tx_hash']
@@ -133,44 +130,37 @@ def main():
                         continue
                     
                     wallet_ref = db_rt.reference(f"user_wallets/{uid}")
-                    wallet_snap = wallet_ref.get()
-                    if not wallet_snap: continue
-
                     safe_usd_value = round(ton_received * ton_deposit_rate_usd, 6)
-                    current_balance = round10(float(wallet_snap.get('balance', 0)))
-                    current_locked = round10(float(wallet_snap.get('lockedBalance', 0)))
-                    current_deposited = float(wallet_snap.get('totalDepositedUSD', 0))
 
                     batch = db_fs.batch()
                     user_ref = db_fs.collection('users').document(uid)
-
                     batch.update(tx_ref, {'amountUSD': safe_usd_value, 'status': 'success'})
 
                     user_doc = user_ref.get()
                     current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
-                    display_crypto = f"{ton_received:.4f} TON"
                     
-                    # 🔥 CẬP NHẬT: Định dạng chuẩn cho Frontend
-                    dep_record = {
-                        'id': f"DEP_{int(time.time() * 1000)}_{uid}",
-                        'type': 'deposit',
-                        'amount': safe_usd_value, 
-                        'network': 'tele',
-                        'username': uid,
-                        'txHash': tx_hash,
-                        'status': 'completed',
-                        'created_at': int(time.time() * 1000)
-                    }
-                    current_history.insert(0, dep_record)
-                    batch.set(user_ref, {'transactionHistory': current_history[:50], 'hasDeposited3USD': (current_deposited + safe_usd_value) >= 3}, merge=True)
+                    # 🛠️ VÁ LỖI 1: Cập nhật lại trạng thái lịch sử thay vì nhét thêm 1 dòng nữa
+                    for record in current_history:
+                        if record.get('txHash') == tx_hash:
+                            record['status'] = 'completed'
+                            record['amount'] = safe_usd_value
+                            break
                     
+                    batch.set(user_ref, {'transactionHistory': current_history[:50]}, merge=True)
+                    
+                    # 🛠️ VÁ LỖI 2: Chống Race Condition bằng Transaction khi gỡ RAM
+                    def update_wallet_ram(current_data):
+                        if current_data is None: return current_data
+                        current_data['balance'] = round10(float(current_data.get('balance', 0)) + safe_usd_value)
+                        current_data['lockedBalance'] = round10(float(current_data.get('lockedBalance', 0)) + safe_usd_value)
+                        current_data['totalDepositedUSD'] = float(current_data.get('totalDepositedUSD', 0)) + safe_usd_value
+                        return current_data
+
                     try:
                         batch.commit()
-                        wallet_ref.update({
-                            'balance': round10(current_balance + safe_usd_value), 
-                            'lockedBalance': round10(current_locked + safe_usd_value),
-                            'totalDepositedUSD': current_deposited + safe_usd_value
-                        })
+                        wallet_ref.transaction(update_wallet_ram)
+                        
+                        display_crypto = f"{ton_received:.4f} TON"
                         print(f"✅ [GỠ TREO RAM] +{safe_usd_value} USDT cho ID {uid}")
                         send_telegram_msg(uid, f"🎉 <b>Deposit Processed!</b>\n\nYour delayed deposit of <b>{display_crypto}</b> has been processed.\n<b>+{safe_usd_value} USDT</b> has been added!")
                         pending_orders_ram.remove(pending)
@@ -182,9 +172,12 @@ def main():
                 if event['timestamp'] > last_processed_time:
                     last_processed_time = event['timestamp']
 
+                # 🛠️ VÁ LỖI 3 (LỖI TRÙNG ĐƠN KÉP): Skip toàn bộ giao dịch đang lơ lửng ở Mempool
+                if event.get('in_progress') is True:
+                    continue
+
                 tx_hash = event['event_id'] 
                 
-                # 🛡️ KIỂM TRA LỚP KHIÊN 1: ĐÃ XỬ LÝ TRONG RAM CHƯA?
                 if tx_hash in processed_txs:
                     continue
                 
@@ -194,11 +187,9 @@ def main():
                 uid = ""
                 display_crypto = ""
 
-                # Vòng lặp tìm Hành động chuyển tiền (Bắt cả TON và USDT)
                 for a in actions:
                     if a.get('status') != 'ok': continue
                     
-                    # Khách nạp đồng TON gốc
                     if a.get('type') == 'TonTransfer':
                         ton_data = a.get('TonTransfer', {})
                         receiver = ton_data.get('recipient', {}).get('address', '')
@@ -210,7 +201,6 @@ def main():
                             display_crypto = f"{ton_received:.4f} TON"
                             break
 
-                    # Khách nạp đồng USDT mạng TON 
                     elif a.get('type') == 'JettonTransfer':
                         jetton_data = a.get('JettonTransfer', {})
                         receiver = jetton_data.get('recipient', {}).get('address', '')
@@ -242,12 +232,9 @@ def main():
                     else:
                         safe_usd_value = round(ton_received * ton_deposit_rate_usd, 6)
 
-                    current_balance = round10(float(wallet_snap.get('balance', 0)))
-                    current_locked = round10(float(wallet_snap.get('lockedBalance', 0)))
                     current_deposited = float(wallet_snap.get('totalDepositedUSD', 0))
 
                     batch = db_fs.batch()
-                    # 🛡️ KIỂM TRA LỚP KHIÊN 2 (CHỐT CHẶN CUỐI CÙNG CHỐNG TRÙNG ĐƠN)
                     batch.create(tx_ref, {
                         'uid': uid, 'type': 'deposit', 'amountTON': ton_received, 
                         'amountUSDT_Jetton': usdt_received, 'amountUSD': safe_usd_value, 
@@ -257,7 +244,6 @@ def main():
                     user_doc = user_ref.get()
                     current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
                     
-                    # 🔥 CẬP NHẬT: Định dạng chuẩn cho Frontend
                     dep_record = {
                         'id': f"DEP_{int(time.time() * 1000)}_{uid}",
                         'type': 'deposit',
@@ -271,15 +257,17 @@ def main():
                     current_history.insert(0, dep_record)
                     batch.set(user_ref, {'transactionHistory': current_history[:50], 'hasDeposited3USD': (current_deposited + safe_usd_value) >= 3}, merge=True)
                     
+                    # 🛠️ VÁ LỖI 2: Dùng Transaction cho nạp tiền bình thường
+                    def update_wallet_new(current_data):
+                        if current_data is None: return current_data
+                        current_data['balance'] = round10(float(current_data.get('balance', 0)) + safe_usd_value)
+                        current_data['lockedBalance'] = round10(float(current_data.get('lockedBalance', 0)) + safe_usd_value)
+                        current_data['totalDepositedUSD'] = float(current_data.get('totalDepositedUSD', 0)) + safe_usd_value
+                        return current_data
+
                     try:
                         batch.commit()
-                        
-                        # CỘNG TIỀN VÀ NHẮN TIN - CHỈ CHẠY KHI GHI BATCH THÀNH CÔNG!
-                        wallet_ref.update({
-                            'balance': round10(current_balance + safe_usd_value), 
-                            'lockedBalance': round10(current_locked + safe_usd_value),
-                            'totalDepositedUSD': current_deposited + safe_usd_value
-                        })
+                        wallet_ref.transaction(update_wallet_new)
                         
                         processed_txs.add(tx_hash)
                         print(f"✅ [NẠP AUTO] +{safe_usd_value} USDT cho ID {uid}")
@@ -300,7 +288,6 @@ def main():
                     user_doc = user_ref.get()
                     current_history = user_doc.to_dict().get('transactionHistory', []) if user_doc.exists else []
                     
-                    # 🔥 CẬP NHẬT: Báo pending nếu kẹt mạng
                     dep_record = {
                         'id': f"DEP_{int(time.time() * 1000)}_{uid}",
                         'type': 'deposit',
